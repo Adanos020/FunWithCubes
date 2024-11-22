@@ -100,7 +100,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 						Voxels[VoxelIndex] = EVoxelType::Grass;
 					}
 				}
-				else if (Height - Z <= 4)
+				else if (Height - Z <= Settings.DirtThickness)
 				{
 					Voxels[VoxelIndex] = EVoxelType::Dirt;
 				}

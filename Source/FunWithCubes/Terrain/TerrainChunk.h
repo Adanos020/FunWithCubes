@@ -13,26 +13,28 @@ struct FTerrainGeneratorSettings
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	int32 BaseAltitude = 0;
+	int32 BaseAltitude = 32;
 
 	// -1 sets the maximum to the chunk's MaxHeight - 1.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
-	int32 MaxAltitude = -1;
+	int32 MaxAltitude = 60;
 	
 	// -1 sets the maximum to the chunk's MaxHeight - 1.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
-	int32 SeaLevel = 16;
+	int32 SeaLevel = 25;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
+	int32 DirtThickness = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 NoiseSeed = 12345;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double TerrainScale = 0.01;
+	double TerrainScale = 0.02;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double CaveScale = 0.1;
+	double CaveScale = 0.05;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double CaveThreshold = 0.3;
+	double CaveThreshold = 0.4;
 };
 
 struct FMeshSegmentData
@@ -91,7 +93,7 @@ protected: // Data
 	float Scale = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 MaxHeight = 128;
+	int32 MaxHeight = 64;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FTerrainGeneratorSettings TerrainGeneratorSettings;
