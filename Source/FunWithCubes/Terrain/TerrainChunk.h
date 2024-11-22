@@ -13,9 +13,13 @@ struct FTerrainGeneratorSettings
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	int32 MinAltitude = 0;
+	int32 BaseAltitude = 0;
+
+	// -1 sets the maximum to the chunk's MaxHeight - 1.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
-	int32 MaxAltitude = -1; // -1 sets the maximum to the chunk's MaxHeight - 1.
+	int32 MaxAltitude = -1;
+	
+	// -1 sets the maximum to the chunk's MaxHeight - 1.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
 	int32 SeaLevel = 16;
 
@@ -28,7 +32,7 @@ struct FTerrainGeneratorSettings
 	double CaveScale = 0.1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double CaveThreshold = 0.8;
+	double CaveThreshold = 0.3;
 };
 
 struct FMeshSegmentData
@@ -55,7 +59,7 @@ class FUNWITHCUBES_API ATerrainChunk : public AActor
 public:
 	ATerrainChunk();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, CallInEditor)
 	TArray<EVoxelType> GenerateTerrain(FTerrainGeneratorSettings Settings) const;
 	
 	UFUNCTION(BlueprintCallable)
@@ -73,19 +77,22 @@ protected: // Data
 	class UMaterialInterface* TerrainMaterial = nullptr;
 	UPROPERTY(EditDefaultsOnly)
 	class UMaterialInterface* WaterMaterial = nullptr;
-
+	
 	// Colours associated with each block type.
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<EVoxelType, FLinearColor> VoxelColors;
 
 	// How many blocks there are in the chunk along both the X and Y axis.
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Resolution = 32;
 
 	// How big the blocks are.
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Scale = 1.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxHeight = 128;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTerrainGeneratorSettings TerrainGeneratorSettings;
 };

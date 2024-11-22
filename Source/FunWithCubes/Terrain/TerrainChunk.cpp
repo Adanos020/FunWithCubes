@@ -64,7 +64,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 		for (int32 Y = 0; Y < Resolution; ++Y)
 		{
 			const double NoiseValue = TerrainNoise.GetValue(FVector(X, Y, 0.0) * Settings.TerrainScale);
-			const int32 Height = Settings.MinAltitude + NoiseValue * (Settings.MaxAltitude - Settings.MinAltitude);
+			const int32 Height = Settings.BaseAltitude + NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude);
 			Heights[X + (Y * Resolution)] = Height;
 		}
 	}
@@ -120,10 +120,18 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 			for (int32 Z = 0; Z < MaxHeight; ++Z)
 			{
 				const double Noise = CaveNoise.GetValue(FVector(X, Y, Z) * Settings.CaveScale);
-				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
-				if (Voxels[VoxelIndex] != EVoxelType::Water && Noise >= Settings.CaveThreshold)
-				{
-					Voxels[VoxelIndex] = EVoxelType::Air;
+
+				// Avoid removing water and solid blocks neighbouring with water (except from above).
+				if (
+					Noise >= Settings.CaveThreshold
+					&& GetVoxelOrAir(Voxels, X,     Y,     Z    ) != EVoxelType::Water
+					&& GetVoxelOrAir(Voxels, X,     Y,     Z + 1) != EVoxelType::Water
+					&& GetVoxelOrAir(Voxels, X,     Y + 1, Z    ) != EVoxelType::Water
+					&& GetVoxelOrAir(Voxels, X,     Y - 1, Z    ) != EVoxelType::Water
+					&& GetVoxelOrAir(Voxels, X - 1, Y,     Z    ) != EVoxelType::Water
+					&& GetVoxelOrAir(Voxels, X + 1, Y,     Z    ) != EVoxelType::Water
+				) {
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Air;
 				}
 			}
 		}
@@ -272,7 +280,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 						WaterMeshData,
 						VoxelType,
 						FIntVector(VoxelX, VoxelY, VoxelZ),
-						[](EVoxelType V) { return V != EVoxelType::Water; }
+						[](EVoxelType V) { return V == EVoxelType::Air; }
 					);
 				}
 			}
