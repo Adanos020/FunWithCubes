@@ -17,6 +17,62 @@ ATerrainChunk::ATerrainChunk()
 	}
 }
 
+TArray<EVoxelType> ATerrainChunk::GenerateRandomCubes() const
+{
+	const int32 NumVoxels = FMath::Square(Resolution) * MaxHeight;
+	TArray<EVoxelType> Voxels;
+	Voxels.SetNumZeroed(NumVoxels);
+
+	ParallelFor(NumVoxels, [&](int32 Index)
+	{
+		Voxels[Index] = static_cast<EVoxelType>(
+			FMath::RandRange(static_cast<int32>(EVoxelType::Air), static_cast<int32>(EVoxelType::Water)));
+	}, EParallelForFlags::Unbalanced);
+
+	return Voxels;
+}
+
+TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
+{
+	const int32 NumVoxels = FMath::Square(Resolution) * MaxHeight;
+	TArray<EVoxelType> Voxels;
+	Voxels.SetNumZeroed(NumVoxels);
+
+	const int32 NumHeights = FMath::Square(Resolution);
+	TArray<int32> Heights;
+	Heights.Init(MaxHeight - 1, NumHeights);
+	
+	for (int32 X = 0; X < Resolution; ++X)
+	{
+		for (int32 Y = 0; Y < Resolution; ++Y)
+		{
+			const int32 Height = Heights[X + (Y * Resolution)];
+			for (int32 Z = 0; Z < MaxHeight; ++Z)
+			{
+				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
+				if (Z > Height)
+				{
+					Voxels[VoxelIndex] = EVoxelType::Air;
+				}
+				else if (Z == Height)
+				{
+					Voxels[VoxelIndex] = EVoxelType::Grass;
+				}
+				else if (Height - Z <= 4)
+				{
+					Voxels[VoxelIndex] = EVoxelType::Dirt;
+				}
+				else
+				{
+					Voxels[VoxelIndex] = EVoxelType::Stone;
+				}
+			}
+		}
+	}
+
+	return Voxels;
+}
+
 void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 {
 	check(ProceduralMesh != nullptr);
@@ -34,6 +90,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 	int32 VerticesAdded = 0;
 
+	// This function assumes vertices are arranged counter-clockwise if the face is looked at from the outside.
 	const auto AddSolidFace = [&](EVoxelType InVoxel, FVector InNormal, std::initializer_list<FVector> InVertices)
 	{
 		check(InVertices.size() == 4);
@@ -61,10 +118,10 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 				const EVoxelType VoxelType = GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ);
 
 				// Vertex offsets
-				const double VertRight  = (VoxelX + 1) * Scale;
-				const double VertLeft   = (VoxelX + 0) * Scale;
-				const double VertFront  = (VoxelY + 1) * Scale;
-				const double VertBack   = (VoxelY + 0) * Scale;
+				const double VertFront  = (VoxelX + 1) * Scale;
+				const double VertBack   = (VoxelX + 0) * Scale;
+				const double VertRight  = (VoxelY + 1) * Scale;
+				const double VertLeft   = (VoxelY + 0) * Scale;
 				const double VertTop    = (VoxelZ + 1) * Scale;
 				const double VertBottom = (VoxelZ + 0) * Scale;
 
@@ -72,30 +129,8 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 				{
 					// Generate faces only where the neighbouring block isn't solid.
 					
-					// Right neighbour
-					if (VoxelX == Resolution || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX + 1, VoxelY, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::RightVector, {
-							FVector(VertFront, VertRight, VertBottom),
-							FVector(VertFront, VertRight, VertTop),
-							FVector(VertBack,  VertRight, VertTop),
-							FVector(VertBack,  VertRight, VertBottom),
-						});
-					}
-					
-					// Left neighbour
-					if (VoxelX == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX - 1, VoxelY, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::LeftVector, {
-							FVector(VertBack,  VertLeft, VertTop),
-							FVector(VertFront, VertLeft, VertTop),
-							FVector(VertFront, VertLeft, VertBottom),
-							FVector(VertBack,  VertLeft, VertBottom),
-						});
-					}
-					
 					// Front neighbour
-					if (VoxelY == Resolution || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY + 1, VoxelZ)))
+					if (VoxelX == Resolution - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX + 1, VoxelY, VoxelZ)))
 					{
 						AddSolidFace(VoxelType, FVector::ForwardVector, {
 							FVector(VertFront, VertRight, VertBottom),
@@ -106,7 +141,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 					}
 					
 					// Back neighbour
-					if (VoxelY == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY - 1, VoxelZ)))
+					if (VoxelX == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX - 1, VoxelY, VoxelZ)))
 					{
 						AddSolidFace(VoxelType, FVector::BackwardVector, {
 							FVector(VertBack, VertRight, VertBottom),
@@ -116,8 +151,30 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 						});
 					}
 					
+					// Right neighbour
+					if (VoxelY == Resolution - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY + 1, VoxelZ)))
+					{
+						AddSolidFace(VoxelType, FVector::RightVector, {
+							FVector(VertFront, VertRight, VertBottom),
+							FVector(VertFront, VertRight, VertTop),
+							FVector(VertBack,  VertRight, VertTop),
+							FVector(VertBack,  VertRight, VertBottom),
+						});
+					}
+					
+					// Left neighbour
+					if (VoxelY == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY - 1, VoxelZ)))
+					{
+						AddSolidFace(VoxelType, FVector::LeftVector, {
+							FVector(VertBack,  VertLeft, VertTop),
+							FVector(VertFront, VertLeft, VertTop),
+							FVector(VertFront, VertLeft, VertBottom),
+							FVector(VertBack,  VertLeft, VertBottom),
+						});
+					}
+					
 					// Top neighbour
-					if (VoxelZ == MaxHeight || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ + 1)))
+					if (VoxelZ == MaxHeight - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ + 1)))
 					{
 						AddSolidFace(VoxelType, FVector::UpVector, {
 							FVector(VertFront, VertRight, VertTop),
@@ -146,13 +203,13 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 int32 ATerrainChunk::ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const
 {
-	return X + (Y * Resolution) + (Z * FMath::Square(Resolution));
+	return Z + (Y * MaxHeight) + (X * MaxHeight * Resolution);
 }
 
 EVoxelType ATerrainChunk::GetVoxelOrAir(const TArray<EVoxelType>& InVoxels, int32 X, int32 Y, int32 Z) const
 {
 	const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
-	if (VoxelIndex >= InVoxels.Num())
+	if (!InVoxels.IsValidIndex(VoxelIndex))
 	{
 		return EVoxelType::Air;
 	}

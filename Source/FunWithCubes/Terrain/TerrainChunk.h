@@ -15,7 +15,13 @@ class FUNWITHCUBES_API ATerrainChunk : public AActor
 public:
 	// Sets default values for this actor's properties
 	ATerrainChunk();
+	
+	UFUNCTION(BlueprintCallable)
+	TArray<EVoxelType> GenerateRandomCubes() const;
 
+	UFUNCTION(BlueprintCallable)
+	TArray<EVoxelType> GenerateTerrain() const;
+	
 	UFUNCTION(BlueprintCallable)
 	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
 
@@ -31,12 +37,12 @@ protected: // Data
 	TMap<EVoxelType, FLinearColor> VoxelColors;
 
 	// How many blocks there are in the chunk along both the X and Y axis.
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
 	int32 Resolution = 32;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
 	float Scale = 1.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly)
 	int32 MaxHeight = 128;
 };

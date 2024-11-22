@@ -9,6 +9,7 @@ enum class EVoxelType : uint8
 {
 	Air,
 	Dirt,
+	Grass,
 	Stone,
 	Water,
 };
