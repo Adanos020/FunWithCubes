@@ -7,6 +7,30 @@
 #include "GameFramework/Actor.h"
 #include "TerrainChunk.generated.h"
 
+USTRUCT(BlueprintType)
+struct FTerrainGeneratorSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
+	int32 MinAltitude = 0;
+	UPROPERTY(BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
+	int32 MaxAltitude = -1; // -1 sets the maximum to the chunk's MaxHeight - 1.
+	UPROPERTY(BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
+	int32 SeaLevel = 16;
+
+	UPROPERTY(BlueprintReadWrite)
+	int32 NoiseSeed = 12345;
+
+	UPROPERTY(BlueprintReadWrite)
+	double TerrainScale = 0.01;
+	UPROPERTY(BlueprintReadWrite)
+	double CaveScale = 0.1;
+
+	UPROPERTY(BlueprintReadWrite)
+	double CaveThreshold = 0.8;
+};
+
 UCLASS()
 class FUNWITHCUBES_API ATerrainChunk : public AActor
 {
@@ -20,7 +44,7 @@ public:
 	TArray<EVoxelType> GenerateRandomCubes() const;
 
 	UFUNCTION(BlueprintCallable)
-	TArray<EVoxelType> GenerateTerrain() const;
+	TArray<EVoxelType> GenerateTerrain(FTerrainGeneratorSettings Settings) const;
 	
 	UFUNCTION(BlueprintCallable)
 	void GenerateMesh(const TArray<EVoxelType>& InVoxels);

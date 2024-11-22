@@ -2,6 +2,7 @@
 
 #include "TerrainChunk.h"
 
+#include "FPerlinNoise3D.h"
 #include "ProceduralMeshComponent.h"
 
 // Sets default values
@@ -32,16 +33,36 @@ TArray<EVoxelType> ATerrainChunk::GenerateRandomCubes() const
 	return Voxels;
 }
 
-TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
+TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Settings) const
 {
+	if (Settings.MaxAltitude < 0)
+	{
+		Settings.MaxAltitude = MaxHeight - 1;
+	}
+
+	FPerlinNoise3D TerrainNoise(Settings.NoiseSeed);
+	FPerlinNoise3D CaveNoise(Settings.NoiseSeed * 13 / 11);
+	
 	const int32 NumVoxels = FMath::Square(Resolution) * MaxHeight;
 	TArray<EVoxelType> Voxels;
 	Voxels.SetNumZeroed(NumVoxels);
 
 	const int32 NumHeights = FMath::Square(Resolution);
 	TArray<int32> Heights;
-	Heights.Init(MaxHeight - 1, NumHeights);
-	
+	Heights.SetNumUninitialized(NumHeights);
+
+	// Generate heights
+	for (int32 X = 0; X < Resolution; ++X)
+	{
+		for (int32 Y = 0; Y < Resolution; ++Y)
+		{
+			const double NoiseValue = TerrainNoise.GetValue(FVector(X, Y, 0.0) * Settings.TerrainScale);
+			const int32 Height = Settings.MinAltitude + NoiseValue * (Settings.MaxAltitude - Settings.MinAltitude);
+			Heights[X + (Y * Resolution)] = Height;
+		}
+	}
+
+	// Generate voxels
 	for (int32 X = 0; X < Resolution; ++X)
 	{
 		for (int32 Y = 0; Y < Resolution; ++Y)
@@ -52,11 +73,25 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
 				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
 				if (Z > Height)
 				{
-					Voxels[VoxelIndex] = EVoxelType::Air;
+					if (Z > Settings.SeaLevel)
+					{
+						Voxels[VoxelIndex] = EVoxelType::Air;
+					}
+					else
+					{
+						Voxels[VoxelIndex] = EVoxelType::Water;
+					}
 				}
 				else if (Z == Height)
 				{
-					Voxels[VoxelIndex] = EVoxelType::Grass;
+					if (Z < Settings.SeaLevel)
+					{
+						Voxels[VoxelIndex] = EVoxelType::Dirt;
+					}
+					else
+					{
+						Voxels[VoxelIndex] = EVoxelType::Grass;
+					}
 				}
 				else if (Height - Z <= 4)
 				{
@@ -70,6 +105,23 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
 		}
 	}
 
+	// Carve out caves
+	for (int32 X = 0; X < Resolution; ++X)
+	{
+		for (int32 Y = 0; Y < Resolution; ++Y)
+		{
+			for (int32 Z = 0; Z < MaxHeight; ++Z)
+			{
+				const double Noise = CaveNoise.GetValue(FVector(X, Y, Z) * Settings.CaveScale);
+				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
+				if (Voxels[VoxelIndex] != EVoxelType::Water && Noise >= Settings.CaveThreshold)
+				{
+					Voxels[VoxelIndex] = EVoxelType::Air;
+				}
+			}
+		}
+	}
+	
 	return Voxels;
 }
 
@@ -82,13 +134,18 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Voxels array isn't of the desired length %d. Excess voxels will be ignored, and missing ones will be replaced with air."), NumVoxels);
 	}
-	
-	TArray<FVector> Vertices;
-	TArray<FVector> Normals;
-	TArray<int32> Indices;
-	TArray<FLinearColor> VertexColors;
 
-	int32 VerticesAdded = 0;
+	struct FMeshSegmentData
+	{
+		TArray<FVector> Vertices;
+		TArray<FVector> Normals;
+		TArray<int32> Indices;
+		TArray<FLinearColor> VertexColors;
+	};
+
+	FMeshSegmentData TerrainMeshData;
+
+	int32 TerrainVerticesAdded = 0;
 
 	// This function assumes vertices are arranged counter-clockwise if the face is looked at from the outside.
 	const auto AddSolidFace = [&](EVoxelType InVoxel, FVector InNormal, std::initializer_list<FVector> InVertices)
@@ -98,15 +155,15 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		const FLinearColor* MappedColor = VoxelColors.Find(InVoxel);
 		const FLinearColor Color = MappedColor ? *MappedColor : FLinearColor::White;
 
-		VertexColors.Append({ Color, Color, Color, Color });
-		Normals.Append({ InNormal, InNormal, InNormal, InNormal });
-		Vertices.Append(InVertices);
-		Indices.Append({
-			VerticesAdded + 0, VerticesAdded + 1, VerticesAdded + 2,
-			VerticesAdded + 0, VerticesAdded + 2, VerticesAdded + 3,
+		TerrainMeshData.VertexColors.Append({ Color, Color, Color, Color });
+		TerrainMeshData.Normals.Append({ InNormal, InNormal, InNormal, InNormal });
+		TerrainMeshData.Vertices.Append(InVertices);
+		TerrainMeshData.Indices.Append({
+			TerrainVerticesAdded + 0, TerrainVerticesAdded + 1, TerrainVerticesAdded + 2,
+			TerrainVerticesAdded + 0, TerrainVerticesAdded + 2, TerrainVerticesAdded + 3,
 		});
 
-		VerticesAdded += 4;
+		TerrainVerticesAdded += 4;
 	};
 
 	for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
@@ -198,7 +255,16 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 			}
 		}
 	}
-	ProceduralMesh->CreateMeshSection_LinearColor(0, Vertices, Indices, Normals, {}, VertexColors, {}, false);
+	ProceduralMesh->CreateMeshSection_LinearColor(
+		0,
+		TerrainMeshData.Vertices,
+		TerrainMeshData.Indices,
+		TerrainMeshData.Normals,
+		{},
+		TerrainMeshData.VertexColors,
+		{},
+		false
+	);
 }
 
 int32 ATerrainChunk::ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const
