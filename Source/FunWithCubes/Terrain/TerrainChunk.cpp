@@ -34,24 +34,22 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 	int32 VerticesAdded = 0;
 
-	const auto AddFaceNormals = [&Normals](FVector InNormal)
+	const auto AddSolidFace = [&](EVoxelType InVoxel, FVector InNormal, std::initializer_list<FVector> InVertices)
 	{
-		Normals.Append({ InNormal, InNormal, InNormal, InNormal });
-	};
-
-	const auto AddFaceColors = [&VertexColors, this](EVoxelType InVoxel)
-	{
+		check(InVertices.size() == 4);
+		
 		const FLinearColor* MappedColor = VoxelColors.Find(InVoxel);
 		const FLinearColor Color = MappedColor ? *MappedColor : FLinearColor::White;
-		VertexColors.Append({ Color, Color, Color, Color });
-	};
 
-	const auto AddFaceIndices = [&Indices, &VerticesAdded]
-	{
+		VertexColors.Append({ Color, Color, Color, Color });
+		Normals.Append({ InNormal, InNormal, InNormal, InNormal });
+		Vertices.Append(InVertices);
 		Indices.Append({
 			VerticesAdded + 0, VerticesAdded + 1, VerticesAdded + 2,
 			VerticesAdded + 0, VerticesAdded + 2, VerticesAdded + 3,
 		});
+
+		VerticesAdded += 4;
 	};
 
 	for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
@@ -63,105 +61,81 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 				const EVoxelType VoxelType = GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ);
 
 				// Vertex offsets
-				const double VertRight  = (VoxelX + 0) * Scale;
-				const double VertLeft   = (VoxelX + 1) * Scale;
-				const double VertFront  = (VoxelY + 0) * Scale;
-				const double VertBack   = (VoxelY + 1) * Scale;
-				const double VertBottom = (VoxelZ + 0) * Scale;
+				const double VertRight  = (VoxelX + 1) * Scale;
+				const double VertLeft   = (VoxelX + 0) * Scale;
+				const double VertFront  = (VoxelY + 1) * Scale;
+				const double VertBack   = (VoxelY + 0) * Scale;
 				const double VertTop    = (VoxelZ + 1) * Scale;
+				const double VertBottom = (VoxelZ + 0) * Scale;
 
 				if (IsVoxelSolid(VoxelType))
 				{
 					// Generate faces only where the neighbouring block isn't solid.
 					
-					// Left neighbour
+					// Right neighbour
 					if (VoxelX == Resolution || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX + 1, VoxelY, VoxelZ)))
 					{
-						Vertices.Append({
-							FVector(VertLeft, VertFront, VertBottom),
-							FVector(VertLeft, VertFront, VertTop),
-							FVector(VertLeft, VertBack,  VertTop),
-							FVector(VertLeft, VertBack,  VertBottom),
+						AddSolidFace(VoxelType, FVector::RightVector, {
+							FVector(VertFront, VertRight, VertBottom),
+							FVector(VertFront, VertRight, VertTop),
+							FVector(VertBack,  VertRight, VertTop),
+							FVector(VertBack,  VertRight, VertBottom),
 						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::LeftVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
 					}
 					
-					// Right neighbour
+					// Left neighbour
 					if (VoxelX == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX - 1, VoxelY, VoxelZ)))
 					{
-						Vertices.Append({
-							FVector(VertRight, VertFront, VertBottom),
-							FVector(VertRight, VertBack,  VertBottom),
-							FVector(VertRight, VertBack,  VertTop),
-							FVector(VertRight, VertFront, VertTop),
+						AddSolidFace(VoxelType, FVector::LeftVector, {
+							FVector(VertBack,  VertLeft, VertTop),
+							FVector(VertFront, VertLeft, VertTop),
+							FVector(VertFront, VertLeft, VertBottom),
+							FVector(VertBack,  VertLeft, VertBottom),
 						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::RightVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
 					}
 					
 					// Front neighbour
-					if (VoxelY == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY - 1, VoxelZ)))
+					if (VoxelY == Resolution || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY + 1, VoxelZ)))
 					{
-						Vertices.Append({
-							FVector(VertLeft,  VertFront, VertBottom),
-							FVector(VertRight, VertFront, VertBottom),
-							FVector(VertRight, VertFront, VertTop),
-							FVector(VertLeft,  VertFront, VertTop),
+						AddSolidFace(VoxelType, FVector::ForwardVector, {
+							FVector(VertFront, VertRight, VertBottom),
+							FVector(VertFront, VertLeft,  VertBottom),
+							FVector(VertFront, VertLeft,  VertTop),
+							FVector(VertFront, VertRight, VertTop),
 						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::ForwardVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
 					}
 					
 					// Back neighbour
-					if (VoxelY == Resolution || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY + 1, VoxelZ)))
+					if (VoxelY == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY - 1, VoxelZ)))
 					{
-						Vertices.Append({
-							FVector(VertRight, VertBack, VertBottom),
-							FVector(VertLeft,  VertBack, VertBottom),
-							FVector(VertLeft,  VertBack, VertTop),
-							FVector(VertRight, VertBack, VertTop),
+						AddSolidFace(VoxelType, FVector::BackwardVector, {
+							FVector(VertBack, VertRight, VertBottom),
+							FVector(VertBack, VertRight, VertTop),
+							FVector(VertBack, VertLeft,  VertTop),
+							FVector(VertBack, VertLeft,  VertBottom),
 						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::BackwardVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
-					}
-
-					// Bottom neighbour
-					if (VoxelZ == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ - 1)))
-					{
-						Vertices.Append({
-							FVector(VertLeft,  VertBack,  VertBottom),
-							FVector(VertRight, VertBack,  VertBottom),
-							FVector(VertRight, VertFront, VertBottom),
-							FVector(VertLeft,  VertFront, VertBottom),
-						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::DownVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
 					}
 					
 					// Top neighbour
 					if (VoxelZ == MaxHeight || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ + 1)))
 					{
-						Vertices.Append({
-							FVector(VertLeft,  VertFront, VertTop),
-							FVector(VertRight, VertFront, VertTop),
-							FVector(VertRight, VertBack,  VertTop),
-							FVector(VertLeft,  VertBack,  VertTop),
+						AddSolidFace(VoxelType, FVector::UpVector, {
+							FVector(VertFront, VertRight, VertTop),
+							FVector(VertFront, VertLeft,  VertTop),
+							FVector(VertBack,  VertLeft,  VertTop),
+							FVector(VertBack,  VertRight, VertTop),
 						});
-						AddFaceColors(VoxelType);
-						AddFaceNormals(FVector::UpVector);
-						AddFaceIndices();
-						VerticesAdded += 4;
+					}
+
+					// Bottom neighbour
+					if (VoxelZ == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ - 1)))
+					{
+						AddSolidFace(VoxelType, FVector::DownVector, {
+							FVector(VertBack,  VertLeft,  VertBottom),
+							FVector(VertFront, VertLeft,  VertBottom),
+							FVector(VertFront, VertRight, VertBottom),
+							FVector(VertBack,  VertRight, VertBottom),
+						});
 					}
 				}
 			}
