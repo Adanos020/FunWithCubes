@@ -5,7 +5,29 @@
 #include "FPerlinNoise3D.h"
 #include "ProceduralMeshComponent.h"
 
-// Sets default values
+// This function assumes vertices are arranged counter-clockwise if the face is looked at from the outside.
+void FMeshSegmentData::AddFace(
+	EVoxelType InVoxel,
+	FVector InNormal,
+	const TMap<EVoxelType, FLinearColor>& VoxelColors,
+	std::initializer_list<FVector> InVertices
+) {
+	check(InVertices.size() == 4);
+	
+	const FLinearColor* MappedColor = VoxelColors.Find(InVoxel);
+	const FLinearColor Color = MappedColor ? *MappedColor : FLinearColor::White;
+
+	VertexColors.Append({ Color, Color, Color, Color });
+	Normals.Append({ InNormal, InNormal, InNormal, InNormal });
+	Vertices.Append(InVertices);
+	Indices.Append({
+		VertexCount + 0, VertexCount + 1, VertexCount + 2,
+		VertexCount + 0, VertexCount + 2, VertexCount + 3,
+	});
+
+	VertexCount += 4;
+}
+
 ATerrainChunk::ATerrainChunk()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -16,21 +38,6 @@ ATerrainChunk::ATerrainChunk()
 	{
 		RootComponent = ProceduralMesh;
 	}
-}
-
-TArray<EVoxelType> ATerrainChunk::GenerateRandomCubes() const
-{
-	const int32 NumVoxels = FMath::Square(Resolution) * MaxHeight;
-	TArray<EVoxelType> Voxels;
-	Voxels.SetNumZeroed(NumVoxels);
-
-	ParallelFor(NumVoxels, [&](int32 Index)
-	{
-		Voxels[Index] = static_cast<EVoxelType>(
-			FMath::RandRange(static_cast<int32>(EVoxelType::Air), static_cast<int32>(EVoxelType::Water)));
-	}, EParallelForFlags::Unbalanced);
-
-	return Voxels;
 }
 
 TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Settings) const
@@ -135,35 +142,111 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		UE_LOG(LogTemp, Warning, TEXT("Voxels array isn't of the desired length %d. Excess voxels will be ignored, and missing ones will be replaced with air."), NumVoxels);
 	}
 
-	struct FMeshSegmentData
-	{
-		TArray<FVector> Vertices;
-		TArray<FVector> Normals;
-		TArray<int32> Indices;
-		TArray<FLinearColor> VertexColors;
-	};
-
 	FMeshSegmentData TerrainMeshData;
+	FMeshSegmentData WaterMeshData;
 
-	int32 TerrainVerticesAdded = 0;
-
-	// This function assumes vertices are arranged counter-clockwise if the face is looked at from the outside.
-	const auto AddSolidFace = [&](EVoxelType InVoxel, FVector InNormal, std::initializer_list<FVector> InVertices)
-	{
-		check(InVertices.size() == 4);
+	const auto AddFacesForBlock = [this, &InVoxels](
+		FMeshSegmentData& MeshSegmentData,
+		EVoxelType VoxelType,
+		FIntVector VoxelPosition,
+		const auto& NeighbourCondition
+	) {
+		// Vertex offsets
+		double VertTopOffset = 0.0;
+		if (VoxelType == EVoxelType::Water)
+		{
+			if (GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z + 1) != EVoxelType::Water)
+			{
+				VertTopOffset = 0.1;
+			}
+		}
 		
-		const FLinearColor* MappedColor = VoxelColors.Find(InVoxel);
-		const FLinearColor Color = MappedColor ? *MappedColor : FLinearColor::White;
+		const double VertFront  = Scale * (VoxelPosition.X + 1);
+		const double VertBack   = Scale * (VoxelPosition.X + 0);
+		const double VertRight  = Scale * (VoxelPosition.Y + 1);
+		const double VertLeft   = Scale * (VoxelPosition.Y + 0);
+		const double VertTop    = Scale * ((VoxelPosition.Z + 1) - VertTopOffset);
+		const double VertBottom = Scale * (VoxelPosition.Z + 0);
+		
+		// Generate faces only where the neighbouring block isn't solid.
+					
+		// Front neighbour
+		if (
+			VoxelPosition.X == Resolution - 1
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X + 1, VoxelPosition.Y, VoxelPosition.Z))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::ForwardVector, VoxelColors, {
+				FVector(VertFront, VertRight, VertBottom),
+				FVector(VertFront, VertLeft,  VertBottom),
+				FVector(VertFront, VertLeft,  VertTop),
+				FVector(VertFront, VertRight, VertTop),
+			});
+		}
+		
+		// Back neighbour
+		if (
+			VoxelPosition.X == 0
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X - 1, VoxelPosition.Y, VoxelPosition.Z))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::BackwardVector, VoxelColors, {
+				FVector(VertBack, VertRight, VertBottom),
+				FVector(VertBack, VertRight, VertTop),
+				FVector(VertBack, VertLeft,  VertTop),
+				FVector(VertBack, VertLeft,  VertBottom),
+			});
+		}
+		
+		// Right neighbour
+		if (
+			VoxelPosition.Y == Resolution - 1
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y + 1, VoxelPosition.Z))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::RightVector, VoxelColors, {
+				FVector(VertFront, VertRight, VertBottom),
+				FVector(VertFront, VertRight, VertTop),
+				FVector(VertBack,  VertRight, VertTop),
+				FVector(VertBack,  VertRight, VertBottom),
+			});
+		}
+		
+		// Left neighbour
+		if (
+			VoxelPosition.Y == 0
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y - 1, VoxelPosition.Z))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::LeftVector, VoxelColors, {
+				FVector(VertBack,  VertLeft, VertTop),
+				FVector(VertFront, VertLeft, VertTop),
+				FVector(VertFront, VertLeft, VertBottom),
+				FVector(VertBack,  VertLeft, VertBottom),
+			});
+		}
+		
+		// Top neighbour
+		if (
+			VoxelPosition.Z == MaxHeight - 1
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z + 1))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::UpVector, VoxelColors, {
+				FVector(VertFront, VertRight, VertTop),
+				FVector(VertFront, VertLeft,  VertTop),
+				FVector(VertBack,  VertLeft,  VertTop),
+				FVector(VertBack,  VertRight, VertTop),
+			});
+		}
 
-		TerrainMeshData.VertexColors.Append({ Color, Color, Color, Color });
-		TerrainMeshData.Normals.Append({ InNormal, InNormal, InNormal, InNormal });
-		TerrainMeshData.Vertices.Append(InVertices);
-		TerrainMeshData.Indices.Append({
-			TerrainVerticesAdded + 0, TerrainVerticesAdded + 1, TerrainVerticesAdded + 2,
-			TerrainVerticesAdded + 0, TerrainVerticesAdded + 2, TerrainVerticesAdded + 3,
-		});
-
-		TerrainVerticesAdded += 4;
+		// Bottom neighbour
+		if (
+			VoxelPosition.Z == 0
+			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z - 1))
+		) {
+			MeshSegmentData.AddFace(VoxelType, FVector::DownVector, VoxelColors, {
+				FVector(VertBack,  VertLeft,  VertBottom),
+				FVector(VertFront, VertLeft,  VertBottom),
+				FVector(VertFront, VertRight, VertBottom),
+				FVector(VertBack,  VertRight, VertBottom),
+			});
+		}
 	};
 
 	for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
@@ -173,88 +256,29 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 			for (int32 VoxelX = 0; VoxelX < Resolution; VoxelX++)
 			{
 				const EVoxelType VoxelType = GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ);
-
-				// Vertex offsets
-				const double VertFront  = (VoxelX + 1) * Scale;
-				const double VertBack   = (VoxelX + 0) * Scale;
-				const double VertRight  = (VoxelY + 1) * Scale;
-				const double VertLeft   = (VoxelY + 0) * Scale;
-				const double VertTop    = (VoxelZ + 1) * Scale;
-				const double VertBottom = (VoxelZ + 0) * Scale;
-
+				
 				if (IsVoxelSolid(VoxelType))
 				{
-					// Generate faces only where the neighbouring block isn't solid.
-					
-					// Front neighbour
-					if (VoxelX == Resolution - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX + 1, VoxelY, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::ForwardVector, {
-							FVector(VertFront, VertRight, VertBottom),
-							FVector(VertFront, VertLeft,  VertBottom),
-							FVector(VertFront, VertLeft,  VertTop),
-							FVector(VertFront, VertRight, VertTop),
-						});
-					}
-					
-					// Back neighbour
-					if (VoxelX == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX - 1, VoxelY, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::BackwardVector, {
-							FVector(VertBack, VertRight, VertBottom),
-							FVector(VertBack, VertRight, VertTop),
-							FVector(VertBack, VertLeft,  VertTop),
-							FVector(VertBack, VertLeft,  VertBottom),
-						});
-					}
-					
-					// Right neighbour
-					if (VoxelY == Resolution - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY + 1, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::RightVector, {
-							FVector(VertFront, VertRight, VertBottom),
-							FVector(VertFront, VertRight, VertTop),
-							FVector(VertBack,  VertRight, VertTop),
-							FVector(VertBack,  VertRight, VertBottom),
-						});
-					}
-					
-					// Left neighbour
-					if (VoxelY == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY - 1, VoxelZ)))
-					{
-						AddSolidFace(VoxelType, FVector::LeftVector, {
-							FVector(VertBack,  VertLeft, VertTop),
-							FVector(VertFront, VertLeft, VertTop),
-							FVector(VertFront, VertLeft, VertBottom),
-							FVector(VertBack,  VertLeft, VertBottom),
-						});
-					}
-					
-					// Top neighbour
-					if (VoxelZ == MaxHeight - 1 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ + 1)))
-					{
-						AddSolidFace(VoxelType, FVector::UpVector, {
-							FVector(VertFront, VertRight, VertTop),
-							FVector(VertFront, VertLeft,  VertTop),
-							FVector(VertBack,  VertLeft,  VertTop),
-							FVector(VertBack,  VertRight, VertTop),
-						});
-					}
-
-					// Bottom neighbour
-					if (VoxelZ == 0 || !IsVoxelSolid(GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ - 1)))
-					{
-						AddSolidFace(VoxelType, FVector::DownVector, {
-							FVector(VertBack,  VertLeft,  VertBottom),
-							FVector(VertFront, VertLeft,  VertBottom),
-							FVector(VertFront, VertRight, VertBottom),
-							FVector(VertBack,  VertRight, VertBottom),
-						});
-					}
+					AddFacesForBlock(
+						TerrainMeshData,
+						VoxelType,
+						FIntVector(VoxelX, VoxelY, VoxelZ),
+						[](EVoxelType V) { return !IsVoxelSolid(V); }
+					);
+				}
+				else if (VoxelType == EVoxelType::Water)
+				{
+					AddFacesForBlock(
+						WaterMeshData,
+						VoxelType,
+						FIntVector(VoxelX, VoxelY, VoxelZ),
+						[](EVoxelType V) { return V != EVoxelType::Water; }
+					);
 				}
 			}
 		}
 	}
+	
 	ProceduralMesh->CreateMeshSection_LinearColor(
 		0,
 		TerrainMeshData.Vertices,
@@ -265,6 +289,19 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		{},
 		false
 	);
+	ProceduralMesh->CreateMeshSection_LinearColor(
+		1,
+		WaterMeshData.Vertices,
+		WaterMeshData.Indices,
+		WaterMeshData.Normals,
+		{},
+		WaterMeshData.VertexColors,
+		{},
+		false
+	);
+
+	ProceduralMesh->SetMaterial(0, TerrainMaterial);
+	ProceduralMesh->SetMaterial(1, WaterMaterial);
 }
 
 int32 ATerrainChunk::ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const
