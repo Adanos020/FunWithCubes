@@ -309,7 +309,23 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 	);
 
 	ProceduralMesh->SetMaterial(0, TerrainMaterial);
-	ProceduralMesh->SetMaterial(1, WaterMaterial);
+	ProceduralMesh->SetMaterial(1, WaterMaterialInstanceDynamic);
+}
+
+void ATerrainChunk::OnConstruction(const FTransform& Transform)
+{
+	if (ensure(WaterMaterial != nullptr))
+	{
+		WaterMaterialInstanceDynamic = UMaterialInstanceDynamic::Create(WaterMaterial, this);
+
+		const double SeaLevel = (static_cast<double>(TerrainGeneratorSettings.SeaLevel) + 0.9) * Scale;
+		WaterMaterialInstanceDynamic->SetScalarParameterValue(TEXT("SeaLevel"), SeaLevel);
+	}
+
+	const TArray<EVoxelType> ChunkData = GenerateTerrain(TerrainGeneratorSettings);
+	GenerateMesh(ChunkData);
+	
+	Super::OnConstruction(Transform);
 }
 
 int32 ATerrainChunk::ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const

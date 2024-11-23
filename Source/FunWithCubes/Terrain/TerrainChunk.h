@@ -66,6 +66,9 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
+
+protected: // Function overrides
+	virtual void OnConstruction(const FTransform& Transform) override;
 	
 protected: // Helper functions
 	int32 ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const;
@@ -79,6 +82,9 @@ protected: // Data
 	class UMaterialInterface* TerrainMaterial = nullptr;
 	UPROPERTY(EditDefaultsOnly)
 	class UMaterialInterface* WaterMaterial = nullptr;
+	
+	UPROPERTY(Transient)
+	class UMaterialInstanceDynamic* WaterMaterialInstanceDynamic = nullptr;
 	
 	// Colours associated with each block type.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
