@@ -63,8 +63,19 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 	{
 		for (int32 Y = 0; Y < Resolution; ++Y)
 		{
-			const double NoiseValue = TerrainNoise.GetValue(FVector(X, Y, 0.0) * Settings.TerrainScale);
-			const int32 Height = Settings.BaseAltitude + NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude);
+			const FVector P = FVector(X, Y, 0) * Settings.TerrainScale;
+			const FVector Q = {
+				TerrainNoise.GetValue(P + FVector(0.0, 0.0, 0.0)),
+				TerrainNoise.GetValue(P + FVector(5.2, 1.3, 0.0)),
+				0,
+			};
+			const FVector R = {
+				TerrainNoise.GetValue(P + (4.0 * Q) + FVector(1.7, 9.2, 0.0)),
+				TerrainNoise.GetValue(P + (4.0 * Q) + FVector(8.3, 2.8, 0.0)),
+				0,
+			};
+			const double NoiseValue = TerrainNoise.GetValue((P + (4.0 * R)));
+			const int32 Height = Settings.BaseAltitude + (NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude));
 			Heights[X + (Y * Resolution)] = Height;
 		}
 	}

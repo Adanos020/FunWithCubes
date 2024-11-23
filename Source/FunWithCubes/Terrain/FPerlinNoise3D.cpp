@@ -31,7 +31,7 @@ double FPerlinNoise3D::GetValue(FVector Position) const
 	const int32 B = Permutations[X + 1] + Y;
 	const int32 BA = Permutations[B] + Z;
 	const int32 BB = Permutations[B + 1] + Z;
-	return FMath::Lerp(
+	const double Noise = FMath::Lerp(
 		FMath::Lerp(
 			FMath::Lerp(
 				Grad(Permutations[AA], FVector(Position.X    , Position.Y, Position.Z)),
@@ -60,6 +60,7 @@ double FPerlinNoise3D::GetValue(FVector Position) const
 		),
 		W
 	);
+	return (Noise + 1) * 0.5;
 }
 
 double FPerlinNoise3D::Fade(double T)
