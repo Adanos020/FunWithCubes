@@ -11,6 +11,7 @@ enum class EVoxelType : uint8
 	Bedrock,
 	Dirt,
 	Grass,
+	Sand,
 	Stone,
 	Water,
 };

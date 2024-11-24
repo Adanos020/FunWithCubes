@@ -108,7 +108,11 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 				}
 				else if (Z == Height)
 				{
-					if (Z < Settings.SeaLevel)
+					if (Z <= Settings.SeaLevel && Z > Settings.SeaLevel - Settings.SandThickness)
+					{
+						Voxels[VoxelIndex] = EVoxelType::Sand;
+					}
+					else if (Z < Settings.SeaLevel - Settings.SandThickness)
 					{
 						Voxels[VoxelIndex] = EVoxelType::Dirt;
 					}

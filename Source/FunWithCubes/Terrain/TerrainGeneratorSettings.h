@@ -20,6 +20,8 @@ struct FTerrainGeneratorSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
 	int32 DirtThickness = 4;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
+	int32 SandThickness = 3;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
 	int32 BedrockThickness = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
