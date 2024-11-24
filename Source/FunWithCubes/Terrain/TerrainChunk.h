@@ -3,61 +3,34 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "VoxelType.h"
 #include "GameFramework/Actor.h"
+#include "VoxelType.h"
+#include "TerrainGeneratorSettings.h"
+
 #include "TerrainChunk.generated.h"
-
-USTRUCT(BlueprintType)
-struct FTerrainGeneratorSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	int32 BaseAltitude = 32;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
-	int32 MaxAltitude = 60;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = -1, UIMin = -1))
-	int32 SeaLevel = 25;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	int32 DirtThickness = 4;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	int32 BedrockThickness = 4;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 NoiseSeed = 12345;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	double TerrainScale = 0.02;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	double CaveScale = 0.05;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = 0, UIMin = 0))
-	double CaveThreshold = 0.4;
-};
-
-struct FMeshSegmentData
-{
-	TArray<FVector> Vertices;
-	TArray<FVector> Normals;
-	TArray<int32> Indices;
-	TArray<FLinearColor> VertexColors;
-	int32 VertexCount = 0;
-
-	void AddFace(
-		EVoxelType InVoxel,
-		FVector InNormal,
-		const TMap<EVoxelType, FLinearColor>& VoxelColors,
-		std::initializer_list<FVector> InVertices
-	);
-};
 
 UCLASS()
 class FUNWITHCUBES_API ATerrainChunk : public AActor
 {
 	GENERATED_BODY()
 
+protected:
+	struct FMeshSegmentData
+	{
+		TArray<FVector> Vertices;
+		TArray<FVector> Normals;
+		TArray<int32> Indices;
+		TArray<FLinearColor> VertexColors;
+		int32 VertexCount = 0;
+
+		void AddFace(
+			EVoxelType InVoxel,
+			FVector InNormal,
+			const TMap<EVoxelType, FLinearColor>& Colors,
+			std::initializer_list<FVector> InVertices
+		);
+	};
+	
 public:
 	ATerrainChunk();
 
@@ -66,6 +39,10 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
+	
+	int32 GetResolution() const { return Resolution; }
+	int32 GetMaxHeight() const { return MaxHeight; }
+	double GetScale() const { return Scale; }
 
 protected: // Details buttons
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Terrain Chunk")
@@ -100,7 +77,7 @@ protected: // Data
 
 	// How big the blocks are.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Scale = 1.0f;
+	double Scale = 1.0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxHeight = 64;

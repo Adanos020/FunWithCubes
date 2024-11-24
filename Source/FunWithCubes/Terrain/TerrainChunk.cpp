@@ -6,15 +6,15 @@
 #include "ProceduralMeshComponent.h"
 
 // This function assumes vertices are arranged counter-clockwise if the face is looked at from the outside.
-void FMeshSegmentData::AddFace(
+void ATerrainChunk::FMeshSegmentData::AddFace(
 	EVoxelType InVoxel,
 	FVector InNormal,
-	const TMap<EVoxelType, FLinearColor>& VoxelColors,
+	const TMap<EVoxelType, FLinearColor>& Colors,
 	std::initializer_list<FVector> InVertices
 ) {
 	check(InVertices.size() == 4);
 	
-	const FLinearColor* MappedColor = VoxelColors.Find(InVoxel);
+	const FLinearColor* MappedColor = Colors.Find(InVoxel);
 	const FLinearColor Color = MappedColor ? *MappedColor : FLinearColor::White;
 
 	VertexColors.Append({ Color, Color, Color, Color });
