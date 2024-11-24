@@ -4,21 +4,10 @@ bool IsVoxelSolid(EVoxelType VoxelType)
 {
 	switch (VoxelType)
 	{
+	case EVoxelType::Bedrock:
 	case EVoxelType::Dirt:
 	case EVoxelType::Grass:
 	case EVoxelType::Stone:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-bool IsVoxelSemiTransparent(EVoxelType VoxelType)
-{
-	switch (VoxelType)
-	{
-	case EVoxelType::Water:
 		return true;
 
 	default:

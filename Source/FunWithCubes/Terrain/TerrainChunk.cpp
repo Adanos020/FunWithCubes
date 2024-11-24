@@ -40,13 +40,9 @@ ATerrainChunk::ATerrainChunk()
 	}
 }
 
-TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Settings) const
+TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSettings& Settings) const
 {
-	if (Settings.MaxAltitude < 0)
-	{
-		Settings.MaxAltitude = MaxHeight - 1;
-	}
-
+	FRandomStream BedrockRng(Settings.NoiseSeed);
 	FPerlinNoise3D TerrainNoise(Settings.NoiseSeed);
 	FPerlinNoise3D CaveNoise(Settings.NoiseSeed * 13 / 11);
 	
@@ -115,6 +111,10 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 				{
 					Voxels[VoxelIndex] = EVoxelType::Dirt;
 				}
+				else if (Z == 0 || (Z < Settings.BedrockThickness - 1 && BedrockRng.RandRange(0, 100) < 50))
+				{
+					Voxels[VoxelIndex] = EVoxelType::Bedrock;
+				}
 				else
 				{
 					Voxels[VoxelIndex] = EVoxelType::Stone;
@@ -132,9 +132,10 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(FTerrainGeneratorSettings Sett
 			{
 				const double Noise = CaveNoise.GetValue(FVector(X, Y, Z) * Settings.CaveScale);
 
-				// Avoid removing water and solid blocks neighbouring with water (except from above).
+				// Avoid removing bedrock, water, and solid blocks neighbouring with water (except from above).
 				if (
 					Noise >= Settings.CaveThreshold
+					&& GetVoxelOrAir(Voxels, X,     Y,     Z    ) != EVoxelType::Bedrock
 					&& GetVoxelOrAir(Voxels, X,     Y,     Z    ) != EVoxelType::Water
 					&& GetVoxelOrAir(Voxels, X,     Y,     Z + 1) != EVoxelType::Water
 					&& GetVoxelOrAir(Voxels, X,     Y + 1, Z    ) != EVoxelType::Water
@@ -321,6 +322,13 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 	ProceduralMesh->SetMaterial(0, TerrainMaterial);
 	ProceduralMesh->SetMaterial(1, WaterMaterialInstanceDynamic);
+}
+
+void ATerrainChunk::RandomSeed()
+{
+	TerrainGeneratorSettings.NoiseSeed = FMath::Rand();
+	const TArray<EVoxelType> ChunkData = GenerateTerrain(TerrainGeneratorSettings);
+	GenerateMesh(ChunkData);
 }
 
 void ATerrainChunk::OnConstruction(const FTransform& Transform)

@@ -8,6 +8,7 @@ UENUM(BlueprintType)
 enum class EVoxelType : uint8
 {
 	Air,
+	Bedrock,
 	Dirt,
 	Grass,
 	Stone,
@@ -15,4 +16,3 @@ enum class EVoxelType : uint8
 };
 
 bool IsVoxelSolid(EVoxelType VoxelType);
-bool IsVoxelSemiTransparent(EVoxelType VoxelType);
