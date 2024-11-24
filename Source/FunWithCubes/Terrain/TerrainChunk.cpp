@@ -45,21 +45,29 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 	FRandomStream BedrockRng(Settings.NoiseSeed);
 	FPerlinNoise3D TerrainNoise(Settings.NoiseSeed);
 	FPerlinNoise3D CaveNoise(Settings.NoiseSeed * 13 / 11);
-	
-	const int32 NumVoxels = FMath::Square(Resolution) * MaxHeight;
+
+	// Actual number of voxels generated per horizontal dimension is `Resolution + 2`. The reason for the extra
+	// padding is that I want to have access to noise values in neighbouring chunks in order to prevent generating
+	// unnecessary faces on chunk borders. The actual displayed chunk will still have a width of `Resolution`.
+	const int32 PaddedResolution = Resolution + 2;
+	const int32 NumVoxels = FMath::Square(PaddedResolution) * MaxHeight;
 	TArray<EVoxelType> Voxels;
 	Voxels.SetNumZeroed(NumVoxels);
 
-	const int32 NumHeights = FMath::Square(Resolution);
+	const int32 NumHeights = FMath::Square(PaddedResolution);
 	TArray<int32> Heights;
 	Heights.SetNumUninitialized(NumHeights);
 
-	const auto ChunkLocation = FIntVector(GetActorLocation() / Scale);
+	auto ChunkLocation = FIntVector(GetActorLocation() / Scale);
+
+	// Account for padding.
+	ChunkLocation.X -= 1;
+	ChunkLocation.Y -= 1;
 	
 	// Generate heights
-	for (int32 X = 0; X < Resolution; ++X)
+	for (int32 X = 0; X < PaddedResolution; ++X)
 	{
-		for (int32 Y = 0; Y < Resolution; ++Y)
+		for (int32 Y = 0; Y < PaddedResolution; ++Y)
 		{
 			const FVector P = FVector(ChunkLocation.X + X, ChunkLocation.Y + Y, 0) * Settings.TerrainScale;
 			const FVector Q = {
@@ -74,16 +82,16 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 			};
 			const double NoiseValue = TerrainNoise.GetValue(P + (4.0 * R));
 			const int32 Height = Settings.BaseAltitude + (NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude));
-			Heights[X + (Y * Resolution)] = Height;
+			Heights[X + (Y * PaddedResolution)] = Height;
 		}
 	}
 
 	// Generate voxels
-	for (int32 X = 0; X < Resolution; ++X)
+	for (int32 X = 0; X < PaddedResolution; ++X)
 	{
-		for (int32 Y = 0; Y < Resolution; ++Y)
+		for (int32 Y = 0; Y < PaddedResolution; ++Y)
 		{
-			const int32 Height = Heights[X + (Y * Resolution)];
+			const int32 Height = Heights[X + (Y * PaddedResolution)];
 			for (int32 Z = 0; Z < MaxHeight; ++Z)
 			{
 				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
@@ -126,9 +134,9 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 	}
 
 	// Carve out caves
-	for (int32 X = 0; X < Resolution; ++X)
+	for (int32 X = 0; X < PaddedResolution; ++X)
 	{
-		for (int32 Y = 0; Y < Resolution; ++Y)
+		for (int32 Y = 0; Y < PaddedResolution; ++Y)
 		{
 			for (int32 Z = 0; Z < MaxHeight; ++Z)
 			{
@@ -183,18 +191,18 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 			}
 		}
 		
-		const double VertFront  = Scale * (VoxelPosition.X + 1);
-		const double VertBack   = Scale * (VoxelPosition.X + 0);
-		const double VertRight  = Scale * (VoxelPosition.Y + 1);
-		const double VertLeft   = Scale * (VoxelPosition.Y + 0);
-		const double VertTop    = Scale * ((VoxelPosition.Z + 1) - VertTopOffset);
-		const double VertBottom = Scale * (VoxelPosition.Z + 0);
+		const double VertFront  = Scale * (VoxelPosition.X - 0);
+		const double VertBack   = Scale * (VoxelPosition.X - 1);
+		const double VertRight  = Scale * (VoxelPosition.Y - 0);
+		const double VertLeft   = Scale * (VoxelPosition.Y - 1);
+		const double VertTop    = Scale * ((VoxelPosition.Z - 0) - VertTopOffset);
+		const double VertBottom = Scale * (VoxelPosition.Z - 1);
 		
 		// Generate faces only where the neighbouring block isn't solid.
 					
 		// Front neighbour
 		if (
-			VoxelPosition.X == Resolution - 1
+			(VoxelPosition.X == Resolution - 1 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X + 1, VoxelPosition.Y, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::ForwardVector, VoxelColors, {
@@ -207,7 +215,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Back neighbour
 		if (
-			VoxelPosition.X == 0
+			(VoxelPosition.X == 1 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X - 1, VoxelPosition.Y, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::BackwardVector, VoxelColors, {
@@ -220,7 +228,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Right neighbour
 		if (
-			VoxelPosition.Y == Resolution - 1
+			(VoxelPosition.Y == Resolution - 1 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y + 1, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::RightVector, VoxelColors, {
@@ -233,7 +241,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Left neighbour
 		if (
-			VoxelPosition.Y == 0
+			(VoxelPosition.Y == 1 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y - 1, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::LeftVector, VoxelColors, {
@@ -246,7 +254,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Top neighbour
 		if (
-			VoxelPosition.Z == MaxHeight - 1
+			(VoxelPosition.Z == MaxHeight - 1 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z + 1))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::UpVector, VoxelColors, {
@@ -259,7 +267,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 		// Bottom neighbour
 		if (
-			VoxelPosition.Z == 0
+			(VoxelPosition.Z == 0 && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z - 1))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::DownVector, VoxelColors, {
@@ -273,9 +281,9 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 	for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
 	{
-		for (int32 VoxelY = 0; VoxelY < Resolution; VoxelY++)
+		for (int32 VoxelY = 1; VoxelY < Resolution + 1; VoxelY++)
 		{
-			for (int32 VoxelX = 0; VoxelX < Resolution; VoxelX++)
+			for (int32 VoxelX = 1; VoxelX < Resolution + 1; VoxelX++)
 			{
 				const EVoxelType VoxelType = GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ);
 				
@@ -351,7 +359,7 @@ void ATerrainChunk::OnConstruction(const FTransform& Transform)
 
 int32 ATerrainChunk::ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const
 {
-	return Z + (Y * MaxHeight) + (X * MaxHeight * Resolution);
+	return Z + (Y * MaxHeight) + (X * MaxHeight * (Resolution + 2));
 }
 
 EVoxelType ATerrainChunk::GetVoxelOrAir(const TArray<EVoxelType>& InVoxels, int32 X, int32 Y, int32 Z) const

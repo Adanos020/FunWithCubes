@@ -83,5 +83,8 @@ protected: // Data
 	int32 MaxHeight = 64;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShowChunkBorderFaces = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FTerrainGeneratorSettings TerrainGeneratorSettings;
 };
