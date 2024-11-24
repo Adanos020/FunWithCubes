@@ -54,12 +54,14 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 	TArray<int32> Heights;
 	Heights.SetNumUninitialized(NumHeights);
 
+	const auto ChunkLocation = FIntVector(GetActorLocation() / Scale);
+	
 	// Generate heights
 	for (int32 X = 0; X < Resolution; ++X)
 	{
 		for (int32 Y = 0; Y < Resolution; ++Y)
 		{
-			const FVector P = FVector(X, Y, 0) * Settings.TerrainScale;
+			const FVector P = FVector(ChunkLocation.X + X, ChunkLocation.Y + Y, 0) * Settings.TerrainScale;
 			const FVector Q = {
 				TerrainNoise.GetValue(P + FVector(0.0, 0.0, 0.0)),
 				TerrainNoise.GetValue(P + FVector(5.2, 1.3, 0.0)),
@@ -70,7 +72,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 				TerrainNoise.GetValue(P + (4.0 * Q) + FVector(8.3, 2.8, 0.0)),
 				0,
 			};
-			const double NoiseValue = TerrainNoise.GetValue((P + (4.0 * R)));
+			const double NoiseValue = TerrainNoise.GetValue(P + (4.0 * R));
 			const int32 Height = Settings.BaseAltitude + (NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude));
 			Heights[X + (Y * Resolution)] = Height;
 		}
@@ -130,7 +132,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 		{
 			for (int32 Z = 0; Z < MaxHeight; ++Z)
 			{
-				const double Noise = CaveNoise.GetValue(FVector(X, Y, Z) * Settings.CaveScale);
+				const double Noise = CaveNoise.GetValue((FVector(ChunkLocation) + FVector(X, Y, Z)) * Settings.CaveScale);
 
 				// Avoid removing bedrock, water, and solid blocks neighbouring with water (except from above).
 				if (
