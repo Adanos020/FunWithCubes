@@ -41,11 +41,17 @@ ATerrainChunk::ATerrainChunk()
 	}
 }
 
-TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSettings& Settings) const
+void ATerrainChunk::GenerateChunk()
 {
-	FRandomStream BedrockRng(Settings.NoiseSeed);
-	FPerlinNoise3D TerrainNoise(Settings.NoiseSeed);
-	FPerlinNoise3D CaveNoise(Settings.NoiseSeed * 13 / 11);
+	const TArray<EVoxelType> ChunkData = GenerateTerrain();
+	GenerateMesh(ChunkData);
+}
+
+TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
+{
+	FRandomStream BedrockRng(TerrainGeneratorSettings.NoiseSeed);
+	FPerlinNoise3D TerrainNoise(TerrainGeneratorSettings.NoiseSeed);
+	FPerlinNoise3D CaveNoise(TerrainGeneratorSettings.NoiseSeed * 13 / 11);
 
 	// Actual number of voxels generated per horizontal dimension is `Resolution + 2`. The reason for the extra
 	// padding is that I want to have access to noise values in neighbouring chunks in order to prevent generating
@@ -65,12 +71,12 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 	ChunkLocation.X -= 1;
 	ChunkLocation.Y -= 1;
 	
-	// Generate heights
+	// Generate heights (implementation taken from this GDC talk: https://youtu.be/C9RyEiEzMiU?si=jSK3pGED8GSdpLiy)
 	for (int32 X = 0; X < PaddedResolution; ++X)
 	{
 		for (int32 Y = 0; Y < PaddedResolution; ++Y)
 		{
-			const FVector P = FVector(ChunkLocation.X + X, ChunkLocation.Y + Y, 0) * Settings.TerrainScale;
+			const FVector P = FVector(ChunkLocation.X + X, ChunkLocation.Y + Y, 0) * TerrainGeneratorSettings.TerrainScale;
 			const FVector Q = {
 				TerrainNoise.GetValue(P + FVector(0.0, 0.0, 0.0)),
 				TerrainNoise.GetValue(P + FVector(5.2, 1.3, 0.0)),
@@ -82,7 +88,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 				0,
 			};
 			const double NoiseValue = TerrainNoise.GetValue(P + (4.0 * R));
-			const int32 Height = Settings.BaseAltitude + (NoiseValue * (Settings.MaxAltitude - Settings.BaseAltitude));
+			const int32 Height = TerrainGeneratorSettings.BaseAltitude + (NoiseValue * (TerrainGeneratorSettings.MaxAltitude - TerrainGeneratorSettings.BaseAltitude));
 			Heights[X + (Y * PaddedResolution)] = Height;
 		}
 	}
@@ -99,7 +105,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 			// Bedrock layer
 			Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Bedrock;
 			++Z;
-			for (; Z < Settings.BedrockThickness; ++Z)
+			for (; Z < TerrainGeneratorSettings.BedrockThickness; ++Z)
 			{
 				if (BedrockRng.RandRange(0, 100) < 50)
 				{
@@ -112,7 +118,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 			}
 
 			// Stone layer
-			for (; Z < Height - Settings.DirtThickness; ++Z)
+			for (; Z < Height - TerrainGeneratorSettings.DirtThickness; ++Z)
 			{
 				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Stone;
 			}
@@ -124,28 +130,30 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 			}
 
 			// Z == Height
-			if (Z < Settings.SeaLevel)
+			if (Z < TerrainGeneratorSettings.SeaLevel)
 			{
-				if (Z < Settings.SeaLevel - Settings.SandDepth)
+				if (Z < TerrainGeneratorSettings.SeaLevel - TerrainGeneratorSettings.SandDepth)
 				{
 					// Below maximum sand depth: dirt
 					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Dirt;
 					++Z;
 				}
-				else if (Z > Settings.SeaLevel - Settings.SandDepth && Z <= Settings.SeaLevel)
-				{
+				else if (
+					Z > TerrainGeneratorSettings.SeaLevel - TerrainGeneratorSettings.SandDepth
+					&& Z <= TerrainGeneratorSettings.SeaLevel
+				) {
 					// Between sea level and maximum sand depth: sand
 					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Sand;
 					++Z;
 				}
 
 				// Water
-				for (; Z <= Settings.SeaLevel; ++Z)
+				for (; Z <= TerrainGeneratorSettings.SeaLevel; ++Z)
 				{
 					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Water;
 				}
 			}
-			else if (Z == Settings.SeaLevel)
+			else if (Z == TerrainGeneratorSettings.SeaLevel)
 			{
 				// Coastal beaches
 				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Sand;
@@ -165,11 +173,12 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 		{
 			for (int32 Z = 0; Z < MaxHeight; ++Z)
 			{
-				const double Noise = CaveNoise.GetValue((FVector(ChunkLocation) + FVector(X, Y, Z)) * Settings.CaveScale);
+				const double Noise = CaveNoise.GetValue(
+					(FVector(ChunkLocation) + FVector(X, Y, Z)) * TerrainGeneratorSettings.CaveScale);
 
 				// Avoid removing bedrock, water, and solid blocks neighbouring with water (except from above).
 				if (
-					Noise >= Settings.CaveThreshold
+					Noise >= TerrainGeneratorSettings.CaveThreshold
 					&& GetVoxelOrAir(Voxels, X,     Y,     Z    ) != EVoxelType::Bedrock
 					&& GetVoxelOrAir(Voxels, X,     Y,     Z    ) != EVoxelType::Water
 					&& GetVoxelOrAir(Voxels, X,     Y,     Z + 1) != EVoxelType::Water
@@ -227,7 +236,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 					
 		// Front neighbour
 		if (
-			(VoxelPosition.X == Resolution && bShowChunkBorderFaces)
+			(VoxelPosition.X == Resolution && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X + 1, VoxelPosition.Y, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::ForwardVector, VoxelColors, {
@@ -240,7 +249,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Back neighbour
 		if (
-			(VoxelPosition.X == 1 && bShowChunkBorderFaces)
+			(VoxelPosition.X == 1 && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X - 1, VoxelPosition.Y, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::BackwardVector, VoxelColors, {
@@ -253,7 +262,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Right neighbour
 		if (
-			(VoxelPosition.Y == Resolution && bShowChunkBorderFaces)
+			(VoxelPosition.Y == Resolution && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y + 1, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::RightVector, VoxelColors, {
@@ -266,7 +275,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Left neighbour
 		if (
-			(VoxelPosition.Y == 1 && bShowChunkBorderFaces)
+			(VoxelPosition.Y == 1 && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y - 1, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::LeftVector, VoxelColors, {
@@ -279,7 +288,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Top neighbour
 		if (
-			(VoxelPosition.Z == MaxHeight - 1 && bShowChunkBorderFaces)
+			(VoxelPosition.Z == MaxHeight - 1 && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z + 1))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::UpVector, VoxelColors, {
@@ -292,7 +301,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 
 		// Bottom neighbour
 		if (
-			(VoxelPosition.Z == 0 && bShowChunkBorderFaces)
+			(VoxelPosition.Z == 0 && bShowChunkEdgeFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y, VoxelPosition.Z - 1))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::DownVector, VoxelColors, {
@@ -362,14 +371,15 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 void ATerrainChunk::RandomSeed()
 {
 	TerrainGeneratorSettings.NoiseSeed = FMath::Rand();
-	const TArray<EVoxelType> ChunkData = GenerateTerrain(TerrainGeneratorSettings);
-	GenerateMesh(ChunkData);
+	GenerateChunk();
 }
 
 void ATerrainChunk::OnConstruction(const FTransform& Transform)
 {
-	const TArray<EVoxelType> ChunkData = GenerateTerrain(TerrainGeneratorSettings);
-	GenerateMesh(ChunkData);
+	if (bGenerateOnConstruction)
+	{
+		GenerateChunk();
+	}
 	
 	Super::OnConstruction(Transform);
 }
@@ -388,4 +398,3 @@ EVoxelType ATerrainChunk::GetVoxelOrAir(const TArray<EVoxelType>& InVoxels, int3
 	}
 	return InVoxels[VoxelIndex];
 }
-

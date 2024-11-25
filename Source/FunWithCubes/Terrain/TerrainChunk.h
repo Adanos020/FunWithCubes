@@ -34,11 +34,9 @@ protected:
 public:
 	ATerrainChunk();
 
-	UFUNCTION(BlueprintCallable, CallInEditor)
-	TArray<EVoxelType> GenerateTerrain(const FTerrainGeneratorSettings& Settings) const;
-	
-	UFUNCTION(BlueprintCallable)
-	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
+	void GenerateChunk();
+
+	void SetRngSeed(int32 Seed) { TerrainGeneratorSettings.NoiseSeed = Seed; }
 	
 	int32 GetResolution() const { return Resolution; }
 	int32 GetMaxHeight() const { return MaxHeight; }
@@ -52,6 +50,9 @@ protected: // Function overrides
 	virtual void OnConstruction(const FTransform& Transform) override;
 	
 protected: // Helper functions
+	TArray<EVoxelType> GenerateTerrain() const;
+	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
+
 	int32 ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const;
 	EVoxelType GetVoxelOrAir(const TArray<EVoxelType>& InVoxels, int32 X, int32 Y, int32 Z) const;
 	
@@ -82,7 +83,11 @@ protected: // Data
 
 	// Whether chunk edges should appear in the chunk mesh.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bShowChunkBorderFaces = false;
+	bool bShowChunkEdgeFaces = false;
+	
+	// Whether chunk edges should appear in the chunk mesh.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bGenerateOnConstruction = false;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FTerrainGeneratorSettings TerrainGeneratorSettings;

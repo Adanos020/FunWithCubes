@@ -20,6 +20,11 @@ void AChunkLoader::BeginPlay()
 		ChunkWidth = DefaultChunk->GetScale() * static_cast<double>(DefaultChunk->GetResolution());
 		MaxChunkHeight = DefaultChunk->GetMaxHeight();
 	}
+	
+	if (bRandomSeed)
+	{
+		RngSeed = FMath::Rand();
+	}
 }
 
 void AChunkLoader::Tick(float DeltaTime)
@@ -59,6 +64,8 @@ void AChunkLoader::Tick(float DeltaTime)
 								ATerrainChunk* NewChunk = GetWorld()->SpawnActor<ATerrainChunk>(
 									ChunkClass, ChunkLocation, FRotator::ZeroRotator)
 							) {
+								NewChunk->SetRngSeed(RngSeed);
+								NewChunk->GenerateChunk();
 								LoadedChunks.Add(CurrentChunkCoord, NewChunk);
 							}
 						}

@@ -1,3 +1,5 @@
+// Perlin noise based on Ken Perlin's implementation: https://cs.nyu.edu/~perlin/noise/
+
 #include "FPerlinNoise3D.h"
 
 FPerlinNoise3D::FPerlinNoise3D(int32 Seed)
@@ -65,7 +67,7 @@ double FPerlinNoise3D::GetValue(FVector Position) const
 
 double FPerlinNoise3D::Fade(double T)
 {
-	return T * T * T * (T * (T * 6.0 - 15.0) + 10.0);
+	return FMath::Cube(T) * (T * (T * 6.0 - 15.0) + 10.0);
 }
 
 double FPerlinNoise3D::Grad(int32 Hash, FVector Position)
