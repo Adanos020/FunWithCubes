@@ -64,24 +64,23 @@ protected: // Data
 	UPROPERTY(EditDefaultsOnly)
 	class UMaterialInterface* WaterMaterial = nullptr;
 	
-	UPROPERTY(Transient)
-	class UMaterialInstanceDynamic* WaterMaterialInstanceDynamic = nullptr;
-	
 	// Colours associated with each block type.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<EVoxelType, FLinearColor> VoxelColors;
 
-	// How many blocks there are in the chunk along both the X and Y axis.
+	// Number of blocks in the chunk along both the X and Y axis.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Resolution = 32;
 
-	// How big the blocks are.
+	// Length of the side of each block.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	double Scale = 1.0;
 
+	// Height limit of the chunk.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxHeight = 64;
-	
+
+	// Whether chunk edges should appear in the chunk mesh.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bShowChunkBorderFaces = false;
 	

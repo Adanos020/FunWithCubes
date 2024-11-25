@@ -108,11 +108,11 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 				}
 				else if (Z == Height)
 				{
-					if (Z <= Settings.SeaLevel && Z > Settings.SeaLevel - Settings.SandThickness)
+					if (Z <= Settings.SeaLevel && Z > Settings.SeaLevel - Settings.SandDepth)
 					{
 						Voxels[VoxelIndex] = EVoxelType::Sand;
 					}
-					else if (Z < Settings.SeaLevel - Settings.SandThickness)
+					else if (Z < Settings.SeaLevel - Settings.SandDepth)
 					{
 						Voxels[VoxelIndex] = EVoxelType::Dirt;
 					}
@@ -335,7 +335,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 	);
 
 	ProceduralMesh->SetMaterial(0, TerrainMaterial);
-	ProceduralMesh->SetMaterial(1, WaterMaterialInstanceDynamic);
+	ProceduralMesh->SetMaterial(1, WaterMaterial);
 }
 
 void ATerrainChunk::RandomSeed()
@@ -347,14 +347,6 @@ void ATerrainChunk::RandomSeed()
 
 void ATerrainChunk::OnConstruction(const FTransform& Transform)
 {
-	if (ensure(WaterMaterial != nullptr))
-	{
-		WaterMaterialInstanceDynamic = UMaterialInstanceDynamic::Create(WaterMaterial, this);
-
-		const double SeaLevel = (static_cast<double>(TerrainGeneratorSettings.SeaLevel) + 0.9) * Scale;
-		WaterMaterialInstanceDynamic->SetScalarParameterValue(TEXT("SeaLevel"), SeaLevel);
-	}
-
 	const TArray<EVoxelType> ChunkData = GenerateTerrain(TerrainGeneratorSettings);
 	GenerateMesh(ChunkData);
 	

@@ -37,6 +37,7 @@ void AChunkLoader::Tick(float DeltaTime)
 			{
 				LastPlayerChunk = CurrentPlayerChunk2D;
 
+				// Load new chunks that come within the render distance from the player.
 				FIntVector2 CurrentChunkCoord;
 				for (CurrentChunkCoord.X = CurrentPlayerChunk2D.X - RenderDistance;
 					CurrentChunkCoord.X < CurrentPlayerChunk2D.X + RenderDistance;
@@ -53,31 +54,29 @@ void AChunkLoader::Tick(float DeltaTime)
 								CurrentChunkCoord.Y * ChunkWidth,
 								0.0,
 							};
-
-							FActorSpawnParameters SpawnParams;
-							SpawnParams.bHideFromSceneOutliner = false;
 							
 							if (
 								ATerrainChunk* NewChunk = GetWorld()->SpawnActor<ATerrainChunk>(
-									ChunkClass, ChunkLocation, FRotator::ZeroRotator, SpawnParams)
+									ChunkClass, ChunkLocation, FRotator::ZeroRotator)
 							) {
 								LoadedChunks.Add(CurrentChunkCoord, NewChunk);
 							}
 						}
 					}
 				}
-			}
-
-			TArray<FIntVector2> LoadedChunkCoords;
-			LoadedChunks.GetKeys(LoadedChunkCoords);
-			for (const FIntVector2 ChunkCoord : LoadedChunkCoords)
-			{
-				if (
-					FMath::Abs(ChunkCoord.X - LastPlayerChunk.X) > RenderDistance
-					|| FMath::Abs(ChunkCoord.Y - LastPlayerChunk.Y) > RenderDistance
-				) {
-					GetWorld()->DestroyActor(LoadedChunks[ChunkCoord]);
-					LoadedChunks.Remove(ChunkCoord);
+				
+				// Unload old chunks that are too far away from the player.
+				TArray<FIntVector2> LoadedChunkCoords;
+				LoadedChunks.GetKeys(LoadedChunkCoords);
+				for (const FIntVector2 ChunkCoord : LoadedChunkCoords)
+				{
+					if (
+						FMath::Abs(ChunkCoord.X - LastPlayerChunk.X) > RenderDistance
+						|| FMath::Abs(ChunkCoord.Y - LastPlayerChunk.Y) > RenderDistance
+					) {
+						GetWorld()->DestroyActor(LoadedChunks[ChunkCoord]);
+						LoadedChunks.Remove(ChunkCoord);
+					}
 				}
 			}
 		}
