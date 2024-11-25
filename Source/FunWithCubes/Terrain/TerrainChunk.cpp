@@ -170,7 +170,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 {
 	check(ProceduralMesh != nullptr);
 	
-	const int32 NumVoxels = Resolution * Resolution * MaxHeight;
+	const int32 NumVoxels = FMath::Square(Resolution + 2) * MaxHeight;
 	if (InVoxels.Num() != NumVoxels)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Voxels array isn't of the desired length %d. Excess voxels will be ignored, and missing ones will be replaced with air."), NumVoxels);
@@ -206,7 +206,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 					
 		// Front neighbour
 		if (
-			(VoxelPosition.X == Resolution - 1 && bShowChunkBorderFaces)
+			(VoxelPosition.X == Resolution && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X + 1, VoxelPosition.Y, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::ForwardVector, VoxelColors, {
@@ -232,7 +232,7 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		
 		// Right neighbour
 		if (
-			(VoxelPosition.Y == Resolution - 1 && bShowChunkBorderFaces)
+			(VoxelPosition.Y == Resolution && bShowChunkBorderFaces)
 			|| NeighbourCondition(GetVoxelOrAir(InVoxels, VoxelPosition.X, VoxelPosition.Y + 1, VoxelPosition.Z))
 		) {
 			MeshSegmentData.AddFace(VoxelType, FVector::RightVector, VoxelColors, {

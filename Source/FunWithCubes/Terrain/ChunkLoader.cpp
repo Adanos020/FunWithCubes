@@ -55,7 +55,7 @@ void AChunkLoader::Tick(float DeltaTime)
 							};
 
 							FActorSpawnParameters SpawnParams;
-							SpawnParams.bHideFromSceneOutliner = true;
+							SpawnParams.bHideFromSceneOutliner = false;
 							
 							if (
 								ATerrainChunk* NewChunk = GetWorld()->SpawnActor<ATerrainChunk>(
