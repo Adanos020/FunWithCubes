@@ -60,9 +60,9 @@ protected: // Data
 	class UProceduralMeshComponent* ProceduralMesh = nullptr;
 
 	UPROPERTY(EditDefaultsOnly)
-	class UMaterialInterface* TerrainMaterial = nullptr;
+	UMaterialInterface* TerrainMaterial = nullptr;
 	UPROPERTY(EditDefaultsOnly)
-	class UMaterialInterface* WaterMaterial = nullptr;
+	UMaterialInterface* WaterMaterial = nullptr;
 	
 	// Colours associated with each block type.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

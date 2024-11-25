@@ -54,7 +54,7 @@ void AChunkLoader::Tick(float DeltaTime)
 								CurrentChunkCoord.Y * ChunkWidth,
 								0.0,
 							};
-							
+
 							if (
 								ATerrainChunk* NewChunk = GetWorld()->SpawnActor<ATerrainChunk>(
 									ChunkClass, ChunkLocation, FRotator::ZeroRotator)
