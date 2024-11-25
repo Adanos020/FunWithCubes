@@ -92,47 +92,67 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain(const FTerrainGeneratorSetting
 		for (int32 Y = 0; Y < PaddedResolution; ++Y)
 		{
 			const int32 Height = Heights[X + (Y * PaddedResolution)];
-			for (int32 Z = 0; Z < MaxHeight; ++Z)
+
+			int32 Z = 0;
+
+			// Bedrock layer
+			Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Bedrock;
+			++Z;
+			for (; Z < Settings.BedrockThickness; ++Z)
 			{
-				const int32 VoxelIndex = ChunkCoordsToVoxelIndex(X, Y, Z);
-				if (Z > Height)
+				if (BedrockRng.RandRange(0, 100) < 50)
 				{
-					if (Z > Settings.SeaLevel)
-					{
-						Voxels[VoxelIndex] = EVoxelType::Air;
-					}
-					else
-					{
-						Voxels[VoxelIndex] = EVoxelType::Water;
-					}
-				}
-				else if (Z == Height)
-				{
-					if (Z <= Settings.SeaLevel && Z > Settings.SeaLevel - Settings.SandDepth)
-					{
-						Voxels[VoxelIndex] = EVoxelType::Sand;
-					}
-					else if (Z < Settings.SeaLevel - Settings.SandDepth)
-					{
-						Voxels[VoxelIndex] = EVoxelType::Dirt;
-					}
-					else
-					{
-						Voxels[VoxelIndex] = EVoxelType::Grass;
-					}
-				}
-				else if (Height - Z <= Settings.DirtThickness)
-				{
-					Voxels[VoxelIndex] = EVoxelType::Dirt;
-				}
-				else if (Z == 0 || (Z < Settings.BedrockThickness - 1 && BedrockRng.RandRange(0, 100) < 50))
-				{
-					Voxels[VoxelIndex] = EVoxelType::Bedrock;
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Bedrock;
 				}
 				else
 				{
-					Voxels[VoxelIndex] = EVoxelType::Stone;
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Stone;
 				}
+			}
+
+			// Stone layer
+			for (; Z < Height - Settings.DirtThickness; ++Z)
+			{
+				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Stone;
+			}
+
+			// Dirt layer
+			for (; Z < Height - 1; ++Z)
+			{
+				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Dirt;
+			}
+
+			// Z == Height
+			if (Z < Settings.SeaLevel)
+			{
+				if (Z < Settings.SeaLevel - Settings.SandDepth)
+				{
+					// Below maximum sand depth: dirt
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Dirt;
+					++Z;
+				}
+				else if (Z > Settings.SeaLevel - Settings.SandDepth && Z <= Settings.SeaLevel)
+				{
+					// Between sea level and maximum sand depth: sand
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Sand;
+					++Z;
+				}
+
+				// Water
+				for (; Z <= Settings.SeaLevel; ++Z)
+				{
+					Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Water;
+				}
+			}
+			else if (Z == Settings.SeaLevel)
+			{
+				// Coastal beaches
+				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Sand;
+			}
+			else
+			{
+				// Fields
+				Voxels[ChunkCoordsToVoxelIndex(X, Y, Z)] = EVoxelType::Grass;
 			}
 		}
 	}
@@ -283,11 +303,11 @@ void ATerrainChunk::GenerateMesh(const TArray<EVoxelType>& InVoxels)
 		}
 	};
 
-	for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
+	for (int32 VoxelX = 1; VoxelX < Resolution + 1; VoxelX++)
 	{
 		for (int32 VoxelY = 1; VoxelY < Resolution + 1; VoxelY++)
 		{
-			for (int32 VoxelX = 1; VoxelX < Resolution + 1; VoxelX++)
+			for (int32 VoxelZ = 0; VoxelZ < MaxHeight; VoxelZ++)
 			{
 				const EVoxelType VoxelType = GetVoxelOrAir(InVoxels, VoxelX, VoxelY, VoxelZ);
 				
