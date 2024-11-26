@@ -50,7 +50,7 @@ protected: // Function overrides
 	virtual void OnConstruction(const FTransform& Transform) override;
 	
 protected: // Helper functions
-	TArray<EVoxelType> GenerateTerrain() const;
+	TArray<EVoxelType> GenerateVoxels() const;
 	void GenerateMesh(const TArray<EVoxelType>& InVoxels);
 
 	int32 ChunkCoordsToVoxelIndex(int32 X, int32 Y, int32 Z) const;

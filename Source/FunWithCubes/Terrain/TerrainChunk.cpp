@@ -43,11 +43,11 @@ ATerrainChunk::ATerrainChunk()
 
 void ATerrainChunk::GenerateChunk()
 {
-	const TArray<EVoxelType> ChunkData = GenerateTerrain();
+	const TArray<EVoxelType> ChunkData = GenerateVoxels();
 	GenerateMesh(ChunkData);
 }
 
-TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
+TArray<EVoxelType> ATerrainChunk::GenerateVoxels() const
 {
 	FRandomStream BedrockRng(TerrainGeneratorSettings.NoiseSeed);
 	FPerlinNoise3D TerrainNoise(TerrainGeneratorSettings.NoiseSeed);
@@ -65,7 +65,7 @@ TArray<EVoxelType> ATerrainChunk::GenerateTerrain() const
 	TArray<int32> Heights;
 	Heights.SetNumUninitialized(NumHeights);
 
-	auto ChunkLocation = FIntVector(GetActorLocation() / Scale);
+	FIntVector ChunkLocation(GetActorLocation() / Scale);
 
 	// Account for padding.
 	ChunkLocation.X -= 1;
